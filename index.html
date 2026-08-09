@@ -1027,7 +1027,7 @@ tbody tr:last-child td { border-bottom: none; }
   </p>
   <div class="form-row">
     <label class="form-label">API 地址 (Worker URL)</label>
-    <input type="text" class="form-input" id="cfgApiUrl" placeholder="https://xxx.workers.dev">
+    <input type="text" class="form-input" id="cfgApiUrl" placeholder="留空使用当前域名，或填 Worker URL">
   </div>
   <div class="form-row">
     <label class="form-label">API 密钥</label>
@@ -1055,8 +1055,8 @@ tbody tr:last-child td { border-bottom: none; }
 
 <script>
 // ========== Cloudflare 云同步配置 ==========
-// 部署 Worker 后，在页面设置面板中填写 API 地址和密钥
-// 或在这里硬编码（不推荐）：下方留空，运行时从 localStorage 读取
+// API 默认使用当前页面域名（Pages Functions），无需填写;
+// 如用独立 Worker，在设置面板中填入 Worker URL 即可覆盖
 const STORAGE_KEY = 'homeStorage_items_v2';
 const RECORDS_KEY = 'homeStorage_records_v1';
 const CFG_KEY = 'homeStorage_cloud_config_v1';
@@ -1067,7 +1067,8 @@ function loadConfig() {
   try { const d = localStorage.getItem(CFG_KEY); return d ? JSON.parse(d) : {}; } catch { return {}; }
 }
 function saveConfig(cfg) { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
-function isCloudReady() { return CLOUD_API_URL && CLOUD_API_KEY; }
+function isCloudReady() { return (CLOUD_API_URL || location.origin) && CLOUD_API_KEY; }
+function getApiBase() { return CLOUD_API_URL || location.origin; }
 
 // 初始化配置（从 localStorage 回读）
 (function initConfig() {
@@ -1155,7 +1156,7 @@ async function pushToCloud() {
   syncInProgress = true;
   updateSyncIndicator('syncing', '同步中...');
   try {
-    const resp = await fetch(`${CLOUD_API_URL}/api/items`, {
+    const resp = await fetch(`${getApiBase()}/api/items`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'x-api-key': CLOUD_API_KEY },
       body: JSON.stringify({ items })
@@ -1188,7 +1189,7 @@ async function pushToCloud() {
 async function pullFromCloud() {
   if (!isCloudReady()) return null;
   try {
-    const resp = await fetch(`${CLOUD_API_URL}/api/items`, {
+    const resp = await fetch(`${getApiBase()}/api/items`, {
       headers: { 'x-api-key': CLOUD_API_KEY }
     });
     if (!resp.ok) return null;
@@ -1283,28 +1284,28 @@ async function applySettings() {
   const key = document.getElementById('cfgApiKey').value.trim();
   const result = document.getElementById('settingsResult');
 
-  if (!url || !key) {
+  if (!key) {
     result.style.display = 'block';
-    result.innerHTML = '<span style="color:var(--red-500);">请填写 API 地址和密钥</span>';
+    result.innerHTML = '<span style="color:var(--red-500);">请填写 API 密钥</span>';
     return;
   }
 
-  // 保存到内存 + localStorage
+  // 保存到内存 + localStorage（API 地址留空 = 使用当前域名 Pages Functions）
   CLOUD_API_URL = url;
   CLOUD_API_KEY = key;
   saveConfig({ apiUrl: url, apiKey: key });
   updateSettingsStatus();
 
-  // 测试连接
+  // 测试连接（API 地址留空时自动用当前域名）
+  const apiBase = url || location.origin;
   result.style.display = 'block';
   result.innerHTML = '<span style="color:var(--amber-500);">正在测试连接...</span>';
   try {
-    const resp = await fetch(`${url}/api/health`, { headers: { 'x-api-key': key } });
+    const resp = await fetch(`${apiBase}/api/health`, { headers: { 'x-api-key': key } });
     const data = await resp.json();
     if (resp.ok && data.ok) {
       result.innerHTML = `<span style="color:var(--green-600);">✓ 连接成功！云端已有 ${data.count} 件物品</span>`;
       updateSyncIndicator('synced', '已配置');
-      // 配置成功后立即执行首次同步
       setTimeout(() => forceSyncNow(), 500);
     } else {
       result.innerHTML = `<span style="color:var(--red-500);">✗ 连接失败：${data.error || '未知错误'}</span>`;
@@ -1353,7 +1354,7 @@ async function forceSyncNow() {
 
 async function pushToCloudNow() {
   if (!isCloudReady()) return;
-  const resp = await fetch(`${CLOUD_API_URL}/api/items`, {
+  const resp = await fetch(`${getApiBase()}/api/items`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'x-api-key': CLOUD_API_KEY },
     body: JSON.stringify({ items })
