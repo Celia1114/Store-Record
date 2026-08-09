@@ -8,7 +8,7 @@ compatibility_date = "2024-12-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "home-storage-db"
-database_id = "YOUR_D1_DATABASE_ID"  # ← 替换为实际 D1 ID
+database_id = "a58f5cd0-cc51-4e6b-980d-4aa413e648b1"  # ← 替换为实际 D1 ID
 
 # 路由（可选，部署后会自动生成 xxx.workers.dev 子域名）
 # routes = []
